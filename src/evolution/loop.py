@@ -22,6 +22,7 @@ import numpy as np
 from src.config import Config
 from src.data.loader import load_benchmark
 from src.evolution.bank import BankEntry, ProgramBank
+from src.evolution.critic import build_critic_prompt, stratified_analysis
 from src.execution.evaluator import _transform_target, evaluate_program
 from src.execution.runner import preload_images
 from src.llm import (
@@ -85,6 +86,44 @@ def _chunked_generate(gen: LLMGenerator, prompts: list[str], chunk: int = _GEN_C
     return out
 
 
+_FULL_SPLITS = ("train", "val", "test", "ood")
+
+
+def _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate_full):
+    """Run the critic on each offspring; return a list of (code, ProgramResult).
+
+    For each offspring: preliminary FULL evaluation -> stratified analysis ->
+    LLM critic call -> re-evaluate the improved program, keeping whichever of
+    (improved, original) has the lower fitness. Critic LLM calls are batched.
+    """
+    prelim = [evaluate_full(c, _FULL_SPLITS) for c in offspring_codes]
+
+    crit_idx, crit_prompts = [], []
+    for i, (code, pr) in enumerate(zip(offspring_codes, prelim)):
+        if pr.success and pr.predictions is not None:
+            worst = stratified_analysis(pr, dataset, pr.predictions)
+            if worst:
+                crit_idx.append(i)
+                crit_prompts.append(build_critic_prompt(code, worst, benchmark_name))
+
+    improved: dict = {}
+    if crit_prompts:
+        gens = _chunked_generate(gen, crit_prompts)
+        improved = {i: LLMGenerator.extract_code(g) for i, g in zip(crit_idx, gens)}
+
+    results = []
+    for i, code in enumerate(offspring_codes):
+        pr = prelim[i]
+        if i in improved:
+            fin = evaluate_full(improved[i], _FULL_SPLITS)
+            # Keep the critic's program only if it strictly improves fitness.
+            if fin.success and fin.fitness < pr.fitness:
+                results.append((improved[i], fin))
+                continue
+        results.append((code, pr))
+    return results
+
+
 def _log_gen(generation: int, bank: ProgramBank, best: BankEntry, history) -> None:
     valid = bank.valid_entries()
     r2s = [e.r2_score for e in valid if np.isfinite(e.r2_score)]
@@ -107,10 +146,16 @@ def _log_gen(generation: int, bank: ProgramBank, best: BankEntry, history) -> No
 # --------------------------------------------------------------------------- #
 # Main loop                                                                   #
 # --------------------------------------------------------------------------- #
-def run_evolution(benchmark_name: str, config: Config, history: list | None = None) -> BankEntry:
+def run_evolution(
+    benchmark_name: str,
+    config: Config,
+    history: list | None = None,
+    generator: LLMGenerator | None = None,
+) -> BankEntry:
     """Run the full evolutionary search; return the best program found.
 
     ``history`` (optional) is appended one dict per generation for introspection.
+    ``generator`` (optional) reuses an already-loaded LLM (avoids a second load).
     """
     set_seed(config.seed)
     data_dir = config.paths.data_dir
@@ -132,9 +177,11 @@ def run_evolution(benchmark_name: str, config: Config, history: list | None = No
     M = config.evolution.population_size
     T = config.evolution.generations
     rho_m = config.evolution.mutation_prob
+    use_critic = config.evolution.use_critic
 
-    gen = LLMGenerator(config)
-    gen.load()
+    gen = generator if generator is not None else LLMGenerator(config)
+    if gen.model is None:
+        gen.load()
 
     def evaluate(code: str, splits=("train",)):
         return evaluate_program(
@@ -194,14 +241,21 @@ def run_evolution(benchmark_name: str, config: Config, history: list | None = No
             gens = _chunked_generate(gen, mut_prompts)
             mut_codes = {i: LLMGenerator.extract_code(r) for i, r in zip(mut_idx, gens)}
 
-        # (f) build offspring, evaluate the mutated ones, track P*, fill new bank.
-        for i in range(M):
-            if mutate[i]:
-                code = mut_codes[i]
-                result = evaluate(code)
-            else:
-                code = cross_codes[i]
-                result = cross_results[i]
+        # assemble post-mutation offspring.
+        offspring_codes = [mut_codes[i] if mutate[i] else cross_codes[i] for i in range(M)]
+
+        # (d/e) critic (Step 6); simplifier (Step 7) still skipped.
+        if use_critic:
+            offspring = _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate)
+        else:
+            # No critic: reuse the crossover eval for non-mutated, eval mutated (train-only).
+            offspring = [
+                (offspring_codes[i], cross_results[i] if not mutate[i] else evaluate(offspring_codes[i]))
+                for i in range(M)
+            ]
+
+        # (f) track P*, fill the next bank.
+        for code, result in offspring:
             entry = _make_entry(code, result, train_var)
             new_bank.add(entry)
             if result.success and result.fitness < best.result.fitness:

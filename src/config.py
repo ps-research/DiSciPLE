@@ -26,6 +26,7 @@ class EvolutionConfig(BaseModel):
     generations: int     # T
     population_size: int  # M
     mutation_prob: float  # rho_m
+    use_critic: bool = True   # Step 6 critic (disable for the no-critic ablation)
 
 
 class LLMConfig(BaseModel):

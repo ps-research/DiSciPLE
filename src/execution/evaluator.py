@@ -27,6 +27,8 @@ class ProgramResult:
     intercept: float | None                 # OLS intercept
     n_features: int
     error_msg: str | None
+    predictions: np.ndarray | None = None   # per-obs OLS predictions, full-N aligned
+                                            # (NaN where not executed); used by the critic
 
 
 def _transform_target(benchmark_name: str, raw: np.ndarray) -> np.ndarray:
@@ -100,6 +102,10 @@ def evaluate_program(
             name: fn(preds[mask], y_sub[mask]) for name, fn in metrics["reported"].items()
         }
 
+    # Full-N prediction array (NaN where not executed) for the critic's stratification.
+    preds_full = np.full(len(splits), np.nan, dtype=float)
+    preds_full[sub_idx] = preds
+
     return ProgramResult(
         success=True,
         fitness=float(fitness),
@@ -108,4 +114,5 @@ def evaluate_program(
         intercept=float(model.intercept_),
         n_features=exec_res.n_features,
         error_msg=None,
+        predictions=preds_full,
     )
