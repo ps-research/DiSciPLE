@@ -12,3 +12,6 @@ logs/
 
 # Unsloth / HF caches
 unsloth_compiled_cache/
+
+# Paper reference material (not code)
+Supplementary/
