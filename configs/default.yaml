@@ -1,0 +1,31 @@
+paths:
+  data_dir: data
+  checkpoint_dir: checkpoints
+  log_dir: logs
+
+benchmarks:
+  population_density:
+    metric: l2_log          # L2 over log10(people per sq mile)
+    has_env: false
+  poverty:
+    metric: l2              # L2 on raw wealth index
+    has_env: true
+  agb:
+    metric: l2              # L2 on raw AGB (Mg/ha)
+    has_env: true
+
+evolution:
+  generations: 15           # T
+  population_size: 100      # M
+  mutation_prob: 0.5        # rho_m (reasonable default; paper doesn't state exact value)
+
+llm:
+  model: unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit
+  max_seq_length: 8192
+  load_in_4bit: true
+  dtype: null               # null -> Unsloth auto-detects (bf16 on A100)
+  temperature: 0.8
+  top_p: 0.95
+  max_new_tokens: 1024
+
+seed: 42
