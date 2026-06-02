@@ -160,14 +160,26 @@ def make_segment(obs_index: int, dataset):
 
 
 def make_get_satellite_image(obs_index: int, dataset, data_dir: str):
-    """Closure: get_satellite_image(location) -> RGB (224,224,3), lazy-loaded."""
+    """Closure: get_satellite_image(location) -> RGB (224,224,3), lazy-loaded.
+
+    Loaded images are memoized on the dataset (keyed by observation index) so
+    repeated evaluations across the evolutionary loop don't re-read from disk.
+    """
     img_path = Path(data_dir) / dataset.name / "images" / f"{dataset.ids[obs_index]}.npy"
 
     def get_satellite_image(location):
+        cache = getattr(dataset, "_satimg_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(dataset, "_satimg_cache", cache)
+        if obs_index in cache:
+            return cache[obs_index]
         try:
-            return np.load(img_path)
+            arr = np.load(img_path)
         except Exception:
-            return np.zeros((*MASK_SHAPE, 3), dtype=np.uint8)
+            arr = np.zeros((*MASK_SHAPE, 3), dtype=np.uint8)
+        cache[obs_index] = arr
+        return arr
 
     return get_satellite_image
 

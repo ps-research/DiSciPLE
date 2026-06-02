@@ -23,6 +23,7 @@ from src.config import Config
 from src.data.loader import load_benchmark
 from src.evolution.bank import BankEntry, ProgramBank
 from src.evolution.critic import build_critic_prompt, stratified_analysis
+from src.evolution.simplifier import count_return_features, simplify_program
 from src.execution.evaluator import _transform_target, evaluate_program
 from src.execution.runner import preload_images
 from src.llm import (
@@ -73,9 +74,9 @@ def _r2(fitness: float, train_var: float) -> float:
     return 1.0 - fitness / train_var
 
 
-def _make_entry(code: str, result, train_var: float) -> BankEntry:
+def _make_entry(code: str, result, train_var: float, simplification: dict | None = None) -> BankEntry:
     r2 = _r2(result.fitness, train_var) if result.success else float("-inf")
-    return BankEntry(program_str=code, result=result, r2_score=r2)
+    return BankEntry(program_str=code, result=result, r2_score=r2, simplification=simplification)
 
 
 def _chunked_generate(gen: LLMGenerator, prompts: list[str], chunk: int = _GEN_CHUNK) -> list[str]:
@@ -122,6 +123,31 @@ def _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate_full):
                 continue
         results.append((code, pr))
     return results
+
+
+def _simplifier_phase(offspring, evaluate_fn, splits):
+    """Analytically simplify each offspring; re-evaluate and keep if it still runs.
+
+    Simplification (dead-code + low-weight feature pruning) is near-lossless, so
+    the simplified program is kept whenever it re-evaluates successfully. Returns
+    (code, result, simplification) triples, where simplification records the
+    pre/post return-feature counts.
+    """
+    out = []
+    for code, result in offspring:
+        simpl = None
+        if result.success and result.weights is not None:
+            pre = count_return_features(code)
+            simplified = simplify_program(code, result.weights)
+            if simplified.strip() != code.strip():
+                fin = evaluate_fn(simplified, splits)
+                if fin.success:
+                    out.append((simplified, fin,
+                                {"pre_features": pre, "post_features": count_return_features(simplified)}))
+                    continue
+            simpl = {"pre_features": pre, "post_features": pre}
+        out.append((code, result, simpl))
+    return out
 
 
 def _log_gen(generation: int, bank: ProgramBank, best: BankEntry, history) -> None:
@@ -178,6 +204,7 @@ def run_evolution(
     T = config.evolution.generations
     rho_m = config.evolution.mutation_prob
     use_critic = config.evolution.use_critic
+    use_simplifier = config.evolution.use_simplifier
 
     gen = generator if generator is not None else LLMGenerator(config)
     if gen.model is None:
@@ -244,19 +271,27 @@ def run_evolution(
         # assemble post-mutation offspring.
         offspring_codes = [mut_codes[i] if mutate[i] else cross_codes[i] for i in range(M)]
 
-        # (d/e) critic (Step 6); simplifier (Step 7) still skipped.
+        # (d) critic (Step 6).
         if use_critic:
             offspring = _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate)
+            eval_splits = _FULL_SPLITS
         else:
             # No critic: reuse the crossover eval for non-mutated, eval mutated (train-only).
             offspring = [
                 (offspring_codes[i], cross_results[i] if not mutate[i] else evaluate(offspring_codes[i]))
                 for i in range(M)
             ]
+            eval_splits = ("train",)
+
+        # (e) simplifier (Step 7) -> (code, result, simplification) triples.
+        if use_simplifier:
+            offspring = _simplifier_phase(offspring, evaluate, eval_splits)
+        else:
+            offspring = [(code, result, None) for code, result in offspring]
 
         # (f) track P*, fill the next bank.
-        for code, result in offspring:
-            entry = _make_entry(code, result, train_var)
+        for code, result, simpl in offspring:
+            entry = _make_entry(code, result, train_var, simplification=simpl)
             new_bank.add(entry)
             if result.success and result.fitness < best.result.fitness:
                 best = entry
@@ -269,7 +304,8 @@ def run_evolution(
     # -- Phase 3: re-evaluate the best program on all splits for reporting --- #
     full = evaluate(best.program_str, splits=("train", "val", "test", "ood"))
     if full.success:
-        best = BankEntry(best.program_str, full, _r2(full.fitness, train_var))
+        best = BankEntry(best.program_str, full, _r2(full.fitness, train_var),
+                         simplification=best.simplification)
 
     print("\n===== BEST PROGRAM =====")
     print(best.program_str)

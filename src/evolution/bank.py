@@ -12,6 +12,7 @@ class BankEntry:
     program_str: str
     result: ProgramResult     # from Step 3's evaluator
     r2_score: float           # R^2 on training data (shown to the LLM; higher = better)
+    simplification: dict | None = None   # {pre_features, post_features} if simplified
 
 
 class ProgramBank:

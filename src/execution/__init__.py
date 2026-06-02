@@ -5,6 +5,7 @@ from .runner import (
     SAFE_BUILTINS,
     ExecutionResult,
     execute_program,
+    has_flat_tuple_return,
     preload_images,
     strip_imports,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "execute_program",
     "preload_images",
     "strip_imports",
+    "has_flat_tuple_return",
     "SAFE_BUILTINS",
     "get_metrics",
     "mse",

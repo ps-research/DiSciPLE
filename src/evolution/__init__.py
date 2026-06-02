@@ -1,4 +1,4 @@
-"""Evolutionary search (Steps 5-6)."""
+"""Evolutionary search (Steps 5-7)."""
 from .bank import BankEntry, ProgramBank
 from .critic import apply_critic, build_critic_prompt, stratified_analysis
 from .loop import (
@@ -6,6 +6,7 @@ from .loop import (
     run_evolution,
     save_evolution_state,
 )
+from .simplifier import simplify_program
 
 __all__ = [
     "BankEntry",
@@ -16,4 +17,5 @@ __all__ = [
     "stratified_analysis",
     "apply_critic",
     "build_critic_prompt",
+    "simplify_program",
 ]

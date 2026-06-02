@@ -18,7 +18,7 @@ You have access to the following functions:
 {api_spec}
 
 Write a Python function called `estimator` that uses these functions to compute useful features.
-The function should return a tuple of numeric features.
+Return a flat tuple of individually named scalar features (e.g. `return feature1, feature2, feature3`). Do not use list comprehensions, dictionary unpacking, starred expressions, or loops in the return statement.
 Only give me the code."""
 
 # Crossover prompt (Appendix D, verbatim).

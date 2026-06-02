@@ -19,6 +19,7 @@ evolution:
   population_size: 100      # M
   mutation_prob: 0.5        # rho_m (reasonable default; paper doesn't state exact value)
   use_critic: true          # Step 6 critic (set false for the no-critic ablation)
+  use_simplifier: true      # Step 7 simplifier (set false for the no-simplifier ablation)
 
 llm:
   model: unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit

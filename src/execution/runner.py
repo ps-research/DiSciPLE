@@ -12,6 +12,7 @@ consumes it and builds the full ``ProgramResult`` (fitness, scores, OLS weights)
 """
 from __future__ import annotations
 
+import ast
 import re
 import signal
 from dataclasses import dataclass
@@ -31,6 +32,32 @@ _IMPORT_LINE = re.compile(r"^[ \t]*(?:import|from)[ \t]+\S.*$", re.MULTILINE)
 def strip_imports(code: str) -> str:
     """Remove top-of-line import statements from a program string."""
     return _IMPORT_LINE.sub("", code)
+
+
+def has_flat_tuple_return(code: str) -> bool:
+    """True iff ``estimator`` ends in a plain flat tuple return.
+
+    A DiSciPLE program must return a flat tuple of named features so the OLS
+    weights map 1:1 to return elements (required by the simplifier's weight
+    pruning, and by the paper's interpretability thesis). Reject returns that
+    are not a top-level ``Tuple`` or that contain ``Starred`` unpacking
+    (``*x``) -- starred / comprehension / loop-expanded returns are not flat.
+    """
+    try:
+        tree = ast.parse(code)
+    except Exception:
+        return False
+    func = next(
+        (n for n in tree.body
+         if isinstance(n, ast.FunctionDef) and n.name == "estimator"),
+        None,
+    )
+    if func is None:
+        return False
+    ret = next((s for s in func.body if isinstance(s, ast.Return)), None)
+    if ret is None or not isinstance(ret.value, ast.Tuple):
+        return False
+    return not any(isinstance(e, ast.Starred) for e in ret.value.elts)
 
 from src.data.loader import BenchmarkDataset
 from src.primitives import functions as F
@@ -139,6 +166,16 @@ def execute_program(
     estimator = ns.get("estimator")
     if not callable(estimator):
         return ExecutionResult(False, None, 0, "no callable 'estimator' defined")
+
+    # Enforce the DiSciPLE program form: a flat tuple of named features. Non-flat
+    # returns (starred/comprehension/loop-expanded) are rejected so only
+    # interpretable, simplifiable programs survive as evolutionary parents.
+    if not has_flat_tuple_return(program_str):
+        return ExecutionResult(
+            False, None, 0,
+            "non-flat return: estimator must return a flat tuple of named features "
+            "(no starred unpacking, comprehensions, or loops in the return)",
+        )
 
     # Pre-load images for population_density (argument to estimator(image)).
     images = None
