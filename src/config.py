@@ -38,7 +38,7 @@ class LLMConfig(BaseModel):
     top_p: float
     max_new_tokens: int
     dtype: str | None = None   # None -> let Unsloth auto-detect (bf16 on A100)
-    gen_batch_size: int = 32   # batched-generation chunk size (~28GB peak on 40GB A100)
+    gen_batch_size: int = 16   # batched-generation chunk size (16 avoids OOM on long/bloated programs)
 
 
 class Config(BaseModel):

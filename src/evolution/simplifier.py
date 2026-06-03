@@ -129,8 +129,16 @@ def simplify_program(
     weights: np.ndarray,
     weight_threshold: float = 0.05,
     report: dict | None = None,
+    feature_stds: np.ndarray | None = None,
+    max_features: int | None = 5,
 ) -> str:
-    """Simplify a program by removing dead code and low-weight features.
+    """Simplify a program by removing dead code and low-contribution features.
+
+    Pruning uses each feature's *contribution* = |weight| * feature_std (a
+    scale-robust importance; falls back to |weight| if ``feature_stds`` is None).
+    A feature is dropped if its contribution is below ``weight_threshold`` x the
+    largest contribution, and the surviving set is capped at ``max_features``
+    (keeping the highest-contribution ones) to keep programs compact (paper: 2-7).
 
     Returns the simplified program string, or the original if simplification is
     not applicable or fails. ``report`` (optional dict) is populated with stats.
@@ -165,20 +173,29 @@ def simplify_program(
         rep["assignments_removed"] += removed1
         ret = _find_return(func)
 
-        # Step C: weight-based feature pruning (only when features map 1:1 to
-        # return elements -- no Starred unpacking, matching lengths).
+        # Step C: contribution-based feature pruning + max-feature cap (only when
+        # features map 1:1 to return elements -- no Starred unpacking, matching lengths).
         elts = ret.value.elts
         w = np.abs(np.asarray(weights, dtype=float).ravel())
+        if feature_stds is not None and len(np.ravel(feature_stds)) == len(w):
+            contrib = w * np.abs(np.asarray(feature_stds, dtype=float).ravel())
+        else:
+            contrib = w
         mappable = (
-            len(w) > 0
-            and len(elts) == len(w)
+            len(contrib) > 0
+            and len(elts) == len(contrib)
             and not any(isinstance(e, ast.Starred) for e in elts)
         )
         if mappable:
-            thresh = weight_threshold * float(w.max())
-            keep = [i for i in range(len(elts)) if w[i] >= thresh]
+            cmax = float(contrib.max())
+            thresh = weight_threshold * cmax
+            keep = [i for i in range(len(elts)) if contrib[i] >= thresh]
             if not keep:                       # pathological: keep the strongest
-                keep = [int(np.argmax(w))]
+                keep = [int(np.argmax(contrib))]
+            # Cap at max_features, keeping the highest-contribution features.
+            if max_features is not None and len(keep) > max_features:
+                keep = sorted(keep, key=lambda i: contrib[i], reverse=True)[:max_features]
+            keep = sorted(keep)                # restore return order
             if len(keep) < len(elts):
                 rep["weight_pruning_applied"] = True
                 rep["features_pruned"] = [i for i in range(len(elts)) if i not in keep]

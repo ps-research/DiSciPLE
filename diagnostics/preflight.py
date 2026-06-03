@@ -163,7 +163,7 @@ def main() -> int:
         b = count_return_features(c)
         if b is None:
             continue
-        s = simplify_program(c, r.weights)
+        s = simplify_program(c, r.weights, feature_stds=r.feature_stds)
         a = count_return_features(s)
         if a is None:
             continue

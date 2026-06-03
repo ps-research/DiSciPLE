@@ -29,6 +29,6 @@ llm:
   temperature: 0.8
   top_p: 0.95
   max_new_tokens: 1024
-  gen_batch_size: 32        # batched-generation chunk size (~28GB peak, ~11GB headroom; 48 OOMs on long prompts)
+  gen_batch_size: 16        # batched-generation chunk size (16 avoids OOM on bloated/long programs; 32 OOM'd)
 
 seed: 42

@@ -138,7 +138,7 @@ def _simplifier_phase(offspring, evaluate_fn, splits):
         simpl = None
         if result.success and result.weights is not None:
             pre = count_return_features(code)
-            simplified = simplify_program(code, result.weights)
+            simplified = simplify_program(code, result.weights, feature_stds=result.feature_stds)
             if simplified.strip() != code.strip():
                 fin = evaluate_fn(simplified, splits)
                 if fin.success:

@@ -29,6 +29,8 @@ class ProgramResult:
     error_msg: str | None
     predictions: np.ndarray | None = None   # per-obs OLS predictions, full-N aligned
                                             # (NaN where not executed); used by the critic
+    feature_stds: np.ndarray | None = None  # per-feature std over train (for the simplifier's
+                                            # scale-robust contribution = |weight| * std)
 
 
 def _transform_target(benchmark_name: str, raw: np.ndarray) -> np.ndarray:
@@ -106,6 +108,9 @@ def evaluate_program(
     preds_full = np.full(len(splits), np.nan, dtype=float)
     preds_full[sub_idx] = preds
 
+    # Per-feature std over the train rows (scale info for the simplifier).
+    feature_stds = np.std(features[train_mask], axis=0)
+
     return ProgramResult(
         success=True,
         fitness=float(fitness),
@@ -115,4 +120,5 @@ def evaluate_program(
         n_features=exec_res.n_features,
         error_msg=None,
         predictions=preds_full,
+        feature_stds=np.asarray(feature_stds, dtype=float),
     )

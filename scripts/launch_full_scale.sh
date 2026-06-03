@@ -23,15 +23,15 @@ launch() {
     sleep 2
 }
 
-# population_density -> gpu-11 (GPUs 0,1,3)
-launch gpu-11 0 population_density full
-launch gpu-11 1 population_density critic_only
-launch gpu-11 3 population_density base
+# population_density -> gpu-22 (GPUs 1,2,3)
+launch gpu-22 1 population_density full
+launch gpu-22 2 population_density critic_only
+launch gpu-22 3 population_density base
 
-# poverty -> gpu-59 (GPUs 1,2,3)
-launch gpu-59 1 poverty full
-launch gpu-59 2 poverty critic_only
-launch gpu-59 3 poverty base
+# poverty -> gpu-15 (GPUs 1,2,3)
+launch gpu-15 1 poverty full
+launch gpu-15 2 poverty critic_only
+launch gpu-15 3 poverty base
 
 # agb -> gpu-14 (GPUs 1,2,3)
 launch gpu-14 1 agb full
