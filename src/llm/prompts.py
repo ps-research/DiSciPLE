@@ -11,14 +11,20 @@ Placeholders are Python ``str.format`` fields filled by the loop at runtime.
 """
 
 # Objective prompt (§4.2): used for initialization and embedded as context in
-# crossover/mutation. {descr} = task description; {api_spec} = primitive docstrings.
-OBJECTIVE_PROMPT = """Given a satellite image, write a function to estimate {descr}.
+# crossover/mutation. Filled per-benchmark by build_objective_prompt(): {intro}
+# (task line), {api_spec} (primitive docstrings), {signature} (the EXACT one-arg
+# estimator signature the executor calls), {input_note} (what the argument is).
+OBJECTIVE_PROMPT = """{intro}
 
 You have access to the following functions:
 {api_spec}
 
-Write a Python function called `estimator` that uses these functions to compute useful features.
-Return a flat tuple of individually named scalar features (e.g. `return feature1, feature2, feature3`). Do not use list comprehensions, dictionary unpacking, starred expressions, or loops in the return statement.
+Write a Python function with EXACTLY this signature (a single argument, no others):
+
+{signature}
+
+{input_note}
+It must return a flat tuple of individually named scalar features (e.g. `return feature1, feature2, feature3`). Do not use list comprehensions, dictionary unpacking, starred expressions, or loops in the return statement.
 Only give me the code."""
 
 # Crossover prompt (Appendix D, verbatim).
@@ -59,3 +65,45 @@ _TASK_DESCRIPTIONS = {
 def get_task_description(benchmark_name: str) -> str:
     """Return the natural-language task description for a benchmark."""
     return _TASK_DESCRIPTIONS.get(benchmark_name, benchmark_name.replace("_", " "))
+
+
+# Per-benchmark objective-prompt parts. The signature MUST match how the executor
+# calls the program: population -> estimator(image); poverty/agb -> estimator(location).
+_BENCH_PROMPT = {
+    "population_density": {
+        "intro": "Given a satellite image, write a function to estimate population density.",
+        "signature": "def estimator(image):",
+        "input_note": "`image` is an RGB satellite image (a numpy array); pass it to "
+                      "`segment(image, concept)` to obtain concept masks.",
+    },
+    "poverty": {
+        "intro": "Given a geographic location, write a function to estimate the poverty (wealth) index.",
+        "signature": "def estimator(location):",
+        "input_note": "`location` is a (latitude, longitude) tuple. Use "
+                      "`get_satellite_image(location)` to get the image for segmentation, and "
+                      "`get_temperature(location)` / `get_precipitation(location)` / "
+                      "`get_elevation(location)` / `get_nightlight_intensity(location)` for "
+                      "environment variables.",
+    },
+    "agb": {
+        "intro": "Given a geographic location, write a function to estimate aboveground biomass.",
+        "signature": "def estimator(location):",
+        "input_note": "`location` is a (latitude, longitude) tuple. Use "
+                      "`get_satellite_image(location)` to get the image for segmentation, and "
+                      "`get_temperature(location)` / `get_precipitation(location)` / "
+                      "`get_elevation(location)` / `get_nightlight_intensity(location)` for "
+                      "environment variables.",
+    },
+}
+
+
+def build_objective_prompt(benchmark_name: str) -> str:
+    """Return the fully-formatted objective prompt for a benchmark (signature pinned)."""
+    from src.primitives.api_spec import get_api_spec
+    spec = _BENCH_PROMPT.get(benchmark_name, _BENCH_PROMPT["population_density"])
+    return OBJECTIVE_PROMPT.format(
+        intro=spec["intro"],
+        api_spec=get_api_spec(benchmark_name),
+        signature=spec["signature"],
+        input_note=spec["input_note"],
+    )

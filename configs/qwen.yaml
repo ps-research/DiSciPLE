@@ -22,7 +22,7 @@ evolution:
   use_simplifier: true      # Step 7 simplifier (set false for the no-simplifier ablation)
 
 llm:
-  model: unsloth/llama-3-8b-Instruct   # paper's model (reproduction); use configs/qwen.yaml for the Qwen comparison
+  model: unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit
   max_seq_length: 8192
   load_in_4bit: true
   dtype: null               # null -> Unsloth auto-detects (bf16 on A100)

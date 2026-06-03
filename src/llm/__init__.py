@@ -6,12 +6,14 @@ from .prompts import (
     MUTATION_PROMPT,
     NO_CONTEXT_OBJECTIVE_PROMPT,
     OBJECTIVE_PROMPT,
+    build_objective_prompt,
     get_task_description,
 )
 
 __all__ = [
     "LLMGenerator",
     "OBJECTIVE_PROMPT",
+    "build_objective_prompt",
     "CROSSOVER_PROMPT",
     "MUTATION_PROMPT",
     "CRITIC_PROMPT",

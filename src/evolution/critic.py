@@ -12,8 +12,7 @@ import numpy as np
 from src.config import Config
 from src.data.loader import BenchmarkDataset
 from src.execution.evaluator import ProgramResult, _transform_target
-from src.llm import CRITIC_PROMPT, OBJECTIVE_PROMPT, LLMGenerator, get_task_description
-from src.primitives import get_api_spec
+from src.llm import CRITIC_PROMPT, LLMGenerator, build_objective_prompt
 
 _PRESENCE_ATTR = "_concept_presence_cache"
 
@@ -70,10 +69,7 @@ def stratified_analysis(
 
 def build_critic_prompt(program_str: str, worst_categories: list[str], benchmark_name: str) -> str:
     """Objective prompt + the program + the critic instruction (Appendix D)."""
-    objective = OBJECTIVE_PROMPT.format(
-        descr=get_task_description(benchmark_name),
-        api_spec=get_api_spec(benchmark_name),
-    )
+    objective = build_objective_prompt(benchmark_name)
     critic = CRITIC_PROMPT.format(bad_categories=", ".join(worst_categories))
     return f"{objective}\n\n{program_str}\n\n{critic}"
 

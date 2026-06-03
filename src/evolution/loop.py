@@ -29,9 +29,8 @@ from src.execution.runner import preload_images
 from src.llm import (
     CROSSOVER_PROMPT,
     MUTATION_PROMPT,
-    OBJECTIVE_PROMPT,
     LLMGenerator,
-    get_task_description,
+    build_objective_prompt,
 )
 from src.primitives import get_api_spec
 from src.utils import set_seed
@@ -90,14 +89,15 @@ def _chunked_generate(gen: LLMGenerator, prompts: list[str], chunk: int = _GEN_C
 _FULL_SPLITS = ("train", "val", "test", "ood")
 
 
-def _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate_full):
+def _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate_fn, gen_chunk):
     """Run the critic on each offspring; return a list of (code, ProgramResult).
 
-    For each offspring: preliminary FULL evaluation -> stratified analysis ->
-    LLM critic call -> re-evaluate the improved program, keeping whichever of
+    For each offspring: preliminary TRAIN-only evaluation (fitness + stratified
+    analysis only need train predictions) -> stratified analysis -> LLM critic
+    call -> re-evaluate the improved program, keeping whichever of
     (improved, original) has the lower fitness. Critic LLM calls are batched.
     """
-    prelim = [evaluate_full(c, _FULL_SPLITS) for c in offspring_codes]
+    prelim = [evaluate_fn(c, ("train",)) for c in offspring_codes]
 
     crit_idx, crit_prompts = [], []
     for i, (code, pr) in enumerate(zip(offspring_codes, prelim)):
@@ -109,14 +109,14 @@ def _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate_full):
 
     improved: dict = {}
     if crit_prompts:
-        gens = _chunked_generate(gen, crit_prompts)
+        gens = _chunked_generate(gen, crit_prompts, gen_chunk)
         improved = {i: LLMGenerator.extract_code(g) for i, g in zip(crit_idx, gens)}
 
     results = []
     for i, code in enumerate(offspring_codes):
         pr = prelim[i]
         if i in improved:
-            fin = evaluate_full(improved[i], _FULL_SPLITS)
+            fin = evaluate_fn(improved[i], ("train",))
             # Keep the critic's program only if it strictly improves fitness.
             if fin.success and fin.fitness < pr.fitness:
                 results.append((improved[i], fin))
@@ -163,6 +163,7 @@ def _log_gen(generation: int, bank: ProgramBank, best: BankEntry, history) -> No
         history.append({
             "generation": generation,
             "best_r2": best.r2_score,
+            "best_fitness": best.result.fitness,
             "best_program": best.program_str,
             "valid_count": bank.valid_count(),
             "mean_r2": mean_r2,
@@ -195,16 +196,14 @@ def run_evolution(
         preload_images(dataset, data_dir) if benchmark_name == "population_density" else None
     )
 
-    objective = OBJECTIVE_PROMPT.format(
-        descr=get_task_description(benchmark_name),
-        api_spec=get_api_spec(benchmark_name),
-    )
+    objective = build_objective_prompt(benchmark_name)
 
     M = config.evolution.population_size
     T = config.evolution.generations
     rho_m = config.evolution.mutation_prob
     use_critic = config.evolution.use_critic
     use_simplifier = config.evolution.use_simplifier
+    gen_chunk = config.llm.gen_batch_size
 
     gen = generator if generator is not None else LLMGenerator(config)
     if gen.model is None:
@@ -225,7 +224,7 @@ def run_evolution(
         # Phase 1: initialization from the objective prompt.
         bank = ProgramBank(benchmark_name)
         init_codes = [LLMGenerator.extract_code(r)
-                      for r in _chunked_generate(gen, [objective] * M)]
+                      for r in _chunked_generate(gen, [objective] * M, gen_chunk)]
         for code in init_codes:
             bank.add(_make_entry(code, evaluate(code), train_var))
         best = bank.best()
@@ -251,7 +250,7 @@ def run_evolution(
                 )
                 cross_prompts.append(f"{objective}\n\n{cp}")
 
-        cross_codes = [LLMGenerator.extract_code(r) for r in _chunked_generate(gen, cross_prompts)]
+        cross_codes = [LLMGenerator.extract_code(r) for r in _chunked_generate(gen, cross_prompts, gen_chunk)]
         cross_results = [evaluate(c) for c in cross_codes]
         cross_r2 = [_r2(r.fitness, train_var) if r.success else float("-inf") for r in cross_results]
 
@@ -265,27 +264,25 @@ def run_evolution(
         ]
         mut_codes = {}
         if mut_prompts:
-            gens = _chunked_generate(gen, mut_prompts)
+            gens = _chunked_generate(gen, mut_prompts, gen_chunk)
             mut_codes = {i: LLMGenerator.extract_code(r) for i, r in zip(mut_idx, gens)}
 
         # assemble post-mutation offspring.
         offspring_codes = [mut_codes[i] if mutate[i] else cross_codes[i] for i in range(M)]
 
-        # (d) critic (Step 6).
+        # (d) critic (Step 6). Evolution evaluates train-only for speed.
         if use_critic:
-            offspring = _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate)
-            eval_splits = _FULL_SPLITS
+            offspring = _critic_phase(offspring_codes, dataset, benchmark_name, gen, evaluate, gen_chunk)
         else:
             # No critic: reuse the crossover eval for non-mutated, eval mutated (train-only).
             offspring = [
                 (offspring_codes[i], cross_results[i] if not mutate[i] else evaluate(offspring_codes[i]))
                 for i in range(M)
             ]
-            eval_splits = ("train",)
 
         # (e) simplifier (Step 7) -> (code, result, simplification) triples.
         if use_simplifier:
-            offspring = _simplifier_phase(offspring, evaluate, eval_splits)
+            offspring = _simplifier_phase(offspring, evaluate, ("train",))
         else:
             offspring = [(code, result, None) for code, result in offspring]
 
