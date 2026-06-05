@@ -1,0 +1,32 @@
+{
+  "benchmark": "population_density",
+  "variant": "full",
+  "use_critic": true,
+  "use_simplifier": true,
+  "seed": 42,
+  "r2_train": 0.8346664835175844,
+  "fitness": 0.132885722307382,
+  "n_features": 5,
+  "simplification": {
+    "pre_features": 11,
+    "post_features": 5
+  },
+  "scores": {
+    "train": {
+      "l2_log": 0.132885722307382,
+      "l1_log": 0.2845316629859279
+    },
+    "val": {
+      "l2_log": 0.07916262838571317,
+      "l1_log": 0.2347311082250733
+    },
+    "test": {
+      "l2_log": 0.17778594297046738,
+      "l1_log": 0.3234993757590024
+    },
+    "ood": {
+      "l2_log": 0.25532981098486235,
+      "l1_log": 0.37076825901623267
+    }
+  }
+}

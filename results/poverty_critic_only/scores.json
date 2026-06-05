@@ -1,0 +1,29 @@
+{
+  "benchmark": "poverty",
+  "variant": "critic_only",
+  "use_critic": true,
+  "use_simplifier": false,
+  "seed": 42,
+  "r2_train": 0.6435089923296593,
+  "fitness": 0.208989315957448,
+  "n_features": 18,
+  "simplification": null,
+  "scores": {
+    "train": {
+      "l1": 0.3361339569830596,
+      "rmse": 0.4571534927761659
+    },
+    "val": {
+      "l1": 0.36563072216397746,
+      "rmse": 0.4875682995400354
+    },
+    "test": {
+      "l1": 0.331605270526462,
+      "rmse": 0.43253712368544583
+    },
+    "ood": {
+      "l1": 0.517558742678266,
+      "rmse": 0.666006897016415
+    }
+  }
+}

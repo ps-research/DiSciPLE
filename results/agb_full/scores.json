@@ -1,0 +1,32 @@
+{
+  "benchmark": "agb",
+  "variant": "full",
+  "use_critic": true,
+  "use_simplifier": true,
+  "seed": 42,
+  "r2_train": 0.2985764280882607,
+  "fitness": 4222.030278796606,
+  "n_features": 5,
+  "simplification": {
+    "pre_features": 11,
+    "post_features": 5
+  },
+  "scores": {
+    "train": {
+      "l1": 47.62621022784771,
+      "rmse": 64.9771519751105
+    },
+    "val": {
+      "l1": 46.113581664450614,
+      "rmse": 68.31194796621416
+    },
+    "test": {
+      "l1": 47.67690276251648,
+      "rmse": 66.0060965106089
+    },
+    "ood": {
+      "l1": 68.22724457674154,
+      "rmse": 92.8451467496854
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "benchmark": "agb",
+  "variant": "base",
+  "use_critic": false,
+  "use_simplifier": false,
+  "seed": 42,
+  "r2_train": 0.3123457141463064,
+  "fitness": 4139.149769811093,
+  "n_features": 36,
+  "simplification": null,
+  "scores": {
+    "train": {
+      "l1": 47.581935208542674,
+      "rmse": 64.3362243981654
+    }
+  }
+}

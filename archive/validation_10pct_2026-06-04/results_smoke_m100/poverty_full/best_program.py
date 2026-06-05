@@ -1,0 +1,12 @@
+def estimator(location):
+    img = get_satellite_image(location)
+    road_mask = segment(img, 'roads')
+    water_mask = segment(img, 'water')
+    swimming_pool_mask = segment(img, 'swimming pool')
+    avg_temperature = np.mean(elementwise_log(np.clip(get_temperature(location) / 255, 0, 1)))
+    avg_precipitation = np.mean(elementwise_log(np.clip(get_precipitation(location), 0, 255)))
+    nightlight_intensity_avg = np.mean(elementwise_log(np.clip(get_nightlight_intensity(location), 0, 1)))
+    water_pixels_distance = np.mean(min_pixel_distance_to_mask(water_mask))
+    swimming_pool_log = np.mean(elementwise_log(np.clip(swimming_pool_mask, 0, 1)))
+    avg_temperature_weighted = np.mean(elementwise_product(road_mask, avg_temperature))
+    return (water_pixels_distance, swimming_pool_log, nightlight_intensity_avg, avg_precipitation, avg_temperature_weighted)

@@ -1,0 +1,31 @@
+paths:
+  data_dir: /nfs-stor/salem.lahlou/sandeep/WACV/DiSciPLE/data
+  checkpoint_dir: /nfs-stor/salem.lahlou/sandeep/WACV/DiSciPLE/results_smoke_m100/poverty_full/checkpoints
+  log_dir: logs
+benchmarks:
+  population_density:
+    metric: l2_log
+    has_env: false
+  poverty:
+    metric: l2
+    has_env: true
+  agb:
+    metric: l2
+    has_env: true
+evolution:
+  generations: 15
+  population_size: 100
+  mutation_prob: 0.5
+  use_critic: true
+  use_simplifier: true
+llm:
+  model: unsloth/llama-3-8b-Instruct
+  max_seq_length: 8192
+  load_in_4bit: true
+  temperature: 0.8
+  top_p: 0.95
+  max_new_tokens: 1024
+  dtype: null
+  gen_batch_size: 16
+seed: 42
+sample_frac: 0.1

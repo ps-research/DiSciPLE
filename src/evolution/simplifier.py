@@ -32,9 +32,16 @@ def _loaded_names(node: ast.AST) -> set[str]:
 def _removable_targets(stmt: ast.stmt):
     """Target name(s) if ``stmt`` is a simple removable assignment, else None.
 
-    Only plain ``x = ...`` / ``x: T = ...`` with Name targets are considered
-    removable. Everything else (for/if/while/expr/aug-assign/tuple-unpack) is
-    treated as non-removable (kept) -- conservative and safe.
+    Plain ``x = ...`` / ``x: T = ...`` / ``x += ...`` with a Name target are
+    considered removable. Everything else (for/if/while/expr/subscript- or
+    attribute-target/tuple-unpack) is treated as non-removable (kept) --
+    conservative and safe.
+
+    Note: ``x += v`` is removable, but it *reads* ``x`` as well as ``v`` -- see
+    ``_rhs_uses`` -- so keeping it correctly keeps ``x``'s initializer alive,
+    and a fully-dead ``x`` chain (``x = ...; x += ...``, ``x`` never returned)
+    is removed in its entirety rather than half-removed (which orphaned the
+    augmented target and raised ``UnboundLocalError``).
     """
     if isinstance(stmt, ast.Assign):
         ids = []
@@ -46,7 +53,21 @@ def _removable_targets(stmt: ast.stmt):
         return ids
     if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.value is not None:
         return [stmt.target.id]
+    if isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name):
+        return [stmt.target.id]
     return None
+
+
+def _rhs_uses(stmt: ast.stmt) -> set[str]:
+    """Names a removable assignment reads on its right-hand side.
+
+    For ``x += v`` this includes ``x`` itself (augmented assignment reads the
+    target before writing it), so a kept ``x += v`` keeps ``x``'s initializer.
+    """
+    uses = _loaded_names(stmt.value)
+    if isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name):
+        uses.add(stmt.target.id)
+    return uses
 
 
 def _eliminate_dead(body: list[ast.stmt]) -> tuple[list[ast.stmt], int]:
@@ -71,7 +92,7 @@ def _eliminate_dead(body: list[ast.stmt]) -> tuple[list[ast.stmt], int]:
             for s in stmts:
                 tg = _removable_targets(s)
                 if tg is not None and any(t in needed for t in tg):
-                    uses = _loaded_names(s.value)
+                    uses = _rhs_uses(s)
                     if not uses <= needed:
                         needed |= uses
                         changed = True

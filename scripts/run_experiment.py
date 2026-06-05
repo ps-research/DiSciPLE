@@ -38,6 +38,9 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--config", default="configs/default.yaml",
                     help="config file (default.yaml=llama, qwen.yaml=Qwen)")
+    ap.add_argument("--sample_frac", type=float, default=None,
+                    help="if set in (0,1): deterministically subsample each split "
+                         "(fast end-to-end validation; e.g. 0.1 for 10%%)")
     args = ap.parse_args()
 
     # Pin the GPU BEFORE importing torch. Respect a launcher-set
@@ -63,6 +66,7 @@ def main() -> int:
     cfg.evolution.population_size = args.population_size
     cfg.seed = args.seed
     cfg.evolution.use_critic, cfg.evolution.use_simplifier = VARIANTS[args.variant]
+    cfg.sample_frac = args.sample_frac
     cfg.paths.data_dir = str(root / "data")            # absolute -> cwd-independent
 
     outdir = Path(args.output_dir)

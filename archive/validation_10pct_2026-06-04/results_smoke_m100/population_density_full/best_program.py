@@ -1,0 +1,13 @@
+def estimator(image):
+    road_mask = segment(image, 'road')
+    highway_mask = segment(image, 'highway')
+    warehouse_mask = segment(image, 'warehouse')
+    building_mask = segment(image, 'buildings')
+    parking_lot_mask = segment(image, 'parking lot')
+    park_mask = segment(image, 'park')
+    road_feature1 = np.var(elementwise_product(road_mask, road_mask))
+    warehouse_feature3 = np.mean(elementwise_product(warehouse_mask, highway_mask))
+    park_feature6 = np.sum(elementwise_log(min_pixel_distance_to_mask(park_mask)).flatten())
+    parking_lot_feature8 = np.var(elementwise_log(min_pixel_distance_to_mask(parking_lot_mask)).flatten())
+    building_feature = np.sum(elementwise_product(building_mask, road_mask).flatten()) / np.sum(elementwise_max(elementwise_min(image[:, :, 0], 128), 0))
+    return (road_feature1, warehouse_feature3, park_feature6, parking_lot_feature8, building_feature)

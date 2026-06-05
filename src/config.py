@@ -47,6 +47,7 @@ class Config(BaseModel):
     evolution: EvolutionConfig
     llm: LLMConfig
     seed: int
+    sample_frac: float | None = None   # if set (0,1): deterministically subsample each split (fast validation runs)
 
 
 def load_config(path: str | Path = "configs/default.yaml") -> Config:

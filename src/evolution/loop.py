@@ -145,6 +145,12 @@ def _simplifier_phase(offspring, evaluate_fn, splits):
                     out.append((simplified, fin,
                                 {"pre_features": pre, "post_features": count_return_features(simplified)}))
                     continue
+                # Loud warning: a simplification was produced but failed re-eval, so we
+                # fall back to the un-simplified program (the feature cap does NOT apply
+                # to it). Silent fallback here previously masked a dead-code bug.
+                print(f"[simplifier] WARNING: discarded simplification "
+                      f"({pre}->{count_return_features(simplified)} feats) -- re-eval failed: "
+                      f"{(fin.error_msg or '')[:120]}; keeping un-simplified program", flush=True)
             simpl = {"pre_features": pre, "post_features": pre}
         out.append((code, result, simpl))
     return out

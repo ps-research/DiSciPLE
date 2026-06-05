@@ -1,0 +1,32 @@
+{
+  "benchmark": "population_density",
+  "variant": "critic_only",
+  "use_critic": true,
+  "use_simplifier": false,
+  "seed": 42,
+  "r2_train": 0.8379245926140128,
+  "fitness": 0.13673537287830578,
+  "n_features": 15,
+  "simplification": null,
+  "scores": {
+    "train": {
+      "l2_log": 0.13673537287830578,
+      "l1_log": 0.2823252153861406
+    },
+    "val": {
+      "l2_log": 0.12784949942322762,
+      "l1_log": 0.2750896852643578
+    },
+    "test": {
+      "l2_log": 0.14982448119276395,
+      "l1_log": 0.2951629355757861
+    },
+    "ood": {
+      "l2_log": 0.21660462122456778,
+      "l1_log": 0.3427027736234007
+    }
+  },
+  "_harvested": true,
+  "_harvested_generation": 13,
+  "_harvest_note": "Converged best harvested from gen-13 checkpoint (run killed mid-T=15; best fitness flat since gen 7 due to no-simplifier program bloat slowing CPU eval). Re-evaluated on all splits exactly as run_evolution's final step."
+}

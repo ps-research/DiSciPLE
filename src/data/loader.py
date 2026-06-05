@@ -53,6 +53,21 @@ def load_benchmark(name: str, config) -> BenchmarkDataset:
     # census FIPS like '010010210001') whose leading zeros must be preserved
     # to match the mask filenames.
     df = pd.read_csv(bench_dir / "manifest.csv", dtype={"id": str})
+
+    # Optional deterministic per-split subsample (fast validation runs). Done
+    # BEFORE loading masks so a 10% run also reads only ~10% of the .npz files.
+    sample_frac = getattr(config, "sample_frac", None)
+    if sample_frac is not None and 0.0 < sample_frac < 1.0:
+        all_splits = df["split"].to_numpy(dtype=object).astype(str)
+        rng = np.random.default_rng(int(getattr(config, "seed", 0)))
+        keep = np.zeros(len(df), dtype=bool)
+        for sp in np.unique(all_splits):
+            idx = np.where(all_splits == sp)[0]
+            n = max(1, int(round(len(idx) * sample_frac)))
+            sel = rng.choice(idx, size=min(n, len(idx)), replace=False)
+            keep[sel] = True
+        df = df.iloc[np.where(keep)[0]].reset_index(drop=True)
+
     ids = df["id"].tolist()
     targets = df["target"].to_numpy(dtype=np.float64)
     splits = df["split"].to_numpy(dtype=object).astype(str)
